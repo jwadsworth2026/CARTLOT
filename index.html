@@ -205,6 +205,8 @@
   <button class="btn ghost" id="exportCsvBtn">CSV</button>
   <button class="btn accent" id="emailBtn">✉ Email</button>
   <button class="btn ghost" id="scannerTestBtn">⌨ Scanner test</button>
+  <button class="btn" id="manualSaveBtn">⭯ Save</button>
+  <button class="btn ghost" id="logoffBtn">Log off</button>
 </header>
 
 <div id="syncBanner">
@@ -572,6 +574,22 @@
   $('syncRetryBtn').addEventListener('click', async ()=>{
     await pullFleet();
     toast(online ? 'Synced' : 'Still offline — check connection');
+  });
+
+  $('manualSaveBtn').addEventListener('click', async ()=>{
+    const btn = $('manualSaveBtn');
+    btn.disabled = true; btn.textContent = '⭯ Syncing…';
+    await pullFleet();
+    await loadOrders();
+    if($('view-match').classList.contains('active')) renderMatch();
+    btn.disabled = false; btn.textContent = '⭯ Save';
+    toast(online ? 'Synced with shared database' : 'Could not reach the database — check connection');
+  });
+
+  $('logoffBtn').addEventListener('click', async ()=>{
+    if(!confirm('Log off this device?')) return;
+    await sb.auth.signOut();
+    location.reload();
   });
 
   // Refresh current state + history from Supabase; re-renders whichever tab is open.
