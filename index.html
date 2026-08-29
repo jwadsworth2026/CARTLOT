@@ -6,11 +6,10 @@
   - All scanning, editing, searching and EXPORTING work with zero network.
     The Excel export is generated in-browser (SpreadsheetML 2003 XML +
     CSV fallback) so there is no CDN or library dependency to fail.
-  - Shared sync goes through the `Store` object below. If a write fails,
-    the record is kept in memory, shown in the UI immediately, flagged
-    "unsynced", and retried automatically. Nothing is ever silently lost.
-  - When self-hosting: replace Store.get/set internals with your own API.
-    Nothing else in the file needs to change.
+  - Shared sync goes through Supabase (see the SUPABASE_URL / SUPABASE_ANON_KEY
+    constants near the top of the script). Every Scan In / Move writes a new
+    row to scan_events — history is append-only, nothing is ever overwritten.
+    Login is required via Supabase Auth before the app is usable.
   ------------------------------------------------------------------
 -->
 <html lang="en">
@@ -21,6 +20,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg:#12151A; --panel:#1B1F26; --raised:#242932; --border:#333A45;
@@ -373,34 +373,86 @@
 (function(){
   'use strict';
 
-  /* ========= STORAGE ADAPTER — swap internals when self-hosting ========= */
-  const Store = {
-    async get(key, shared){
-      for(let i=0;i<2;i++){
-        try{ const r = await window.storage.get(key, !!shared); return r ? r.value : null; }
-        catch(e){ if(i===0) await wait(350); }
-      }
-      return null;
-    },
-    async set(key, value, shared){
-      let last=null;
-      for(let i=0;i<3;i++){
-        try{ await window.storage.set(key, value, !!shared); netOK(); return true; }
-        catch(e){ last=e; if(i<2) await wait(400*(i+1)); }
-      }
-      netFail(last);
-      return false;
-    },
-    async getJSON(k,s,f){ const v=await this.get(k,s); if(!v) return f; try{return JSON.parse(v);}catch(e){return f;} },
-    async setJSON(k,o,s){ return this.set(k, JSON.stringify(o), s); }
-  };
-  const KEY_FLEET = 'cars:fleet';
+  /* ========= SUPABASE CLIENT ========= */
+  const SUPABASE_URL = 'https://npaokahhwpjgmpxkiywx.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_IFa11gwMzdFHzgIEn7NmSg_bIfyPVuE';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const REMOVED_NOTE = 'REMOVED_FROM_STAGING';
+
+  /* ---------- Login gate ---------- */
+  async function requireLogin(){
+    const { data: { session } } = await sb.auth.getSession();
+    if(session) return session;
+    return new Promise(resolve=>{
+      document.body.insertAdjacentHTML('beforeend', `
+        <div id="loginGate" style="position:fixed;inset:0;background:#12151A;z-index:999;
+          display:flex;align-items:center;justify-content:center;padding:20px;">
+          <div style="background:#1B1F26;border:1px solid #333A45;border-radius:10px;padding:24px;width:100%;max-width:340px;">
+            <h2 style="font-family:'Barlow Condensed';text-transform:uppercase;margin:0 0 16px;color:#EDEFF2;">Car Locator Login</h2>
+            <input id="loginEmail" type="email" placeholder="Email" style="width:100%;margin-bottom:10px;padding:11px;border-radius:8px;border:1px solid #333A45;background:#242932;color:#EDEFF2;box-sizing:border-box;">
+            <input id="loginPass" type="password" placeholder="Password" style="width:100%;margin-bottom:14px;padding:11px;border-radius:8px;border:1px solid #333A45;background:#242932;color:#EDEFF2;box-sizing:border-box;">
+            <button id="loginBtn" style="width:100%;padding:13px;border-radius:8px;border:none;background:#4DA3FF;color:#12151A;font-weight:700;cursor:pointer;">Log in</button>
+            <div id="loginErr" style="color:#E15252;font-size:12.5px;margin-top:10px;"></div>
+          </div>
+        </div>`);
+      const doLogin = async ()=>{
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPass').value;
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if(error){ document.getElementById('loginErr').textContent = error.message; return; }
+        document.getElementById('loginGate').remove();
+        resolve(data.session);
+      };
+      document.getElementById('loginBtn').addEventListener('click', doLogin);
+      document.getElementById('loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+    });
+  }
+
+  /* ---------- Vehicles: read current state + per-serial history from Supabase ---------- */
+  async function loadFleetFromSupabase(){
+    const { data: current, error: e1 } = await sb.from('vehicles_current').select('*');
+    if(e1){ netFail(e1); return; }
+    const { data: events, error: e2 } = await sb.from('scan_events')
+      .select('*').order('created_at', {ascending:true});
+    if(e2){ netFail(e2); return; }
+    const bySerial = {};
+    events.forEach(ev=>{
+      bySerial[ev.serial] = bySerial[ev.serial] || [];
+      bySerial[ev.serial].push({ts: ev.created_at, location: ev.location, status: ev.status, note: ev.note });
+    });
+    fleet = {};
+    current.forEach(v=>{
+      const hist = bySerial[v.serial] || [];
+      const lastNote = hist.length ? hist[hist.length-1].note : null;
+      if(lastNote === REMOVED_NOTE) return; // soft-removed: keep history, hide from active views
+      fleet[v.serial] = {
+        serial: v.serial, location: v.location, status: v.status,
+        so: v.sales_order || '', villages: v.villages || '',
+        updated: v.updated_at, history: hist.slice(-40)
+      };
+    });
+    netOK();
+  }
+
+  // Writes one append-only row, then reloads current state from Supabase.
+  async function insertScanEvent({serial, location, status, so, villages, note}){
+    const { data: userData } = await sb.auth.getUser();
+    const user = userData ? userData.user : null;
+    const { error } = await sb.from('scan_events').insert({
+      serial, location, status,
+      sales_order: so || null, villages: villages || null,
+      note: note || null, created_by: user ? user.id : null
+    });
+    if(error){ netFail(error); toast('Save failed — check connection and try again'); return false; }
+    netOK();
+    await loadFleetFromSupabase();
+    return true;
+  }
 
   const LOCATIONS = ['Stage Aisle 1','Stage Aisle 2','Stage Aisle 3','Stage Aisle 4','Dock Stage 1','Dock Stage 2'];
 
   /* fleet = { SERIAL: {serial, location, status, so, villages, updated, updatedBy, history:[{ts,location,status}]} } */
   let fleet = {};
-  let dirty = false;          // local changes not yet pushed
   let online = true;
   let sel = { status:'', existing:null };
 
@@ -421,9 +473,9 @@
   }
   function updateBanner(){
     const b=$('syncBanner');
-    if(!dirty){ b.style.display='none'; return; }
+    if(online){ b.style.display='none'; return; }
     b.style.display='flex';
-    $('syncBannerText').textContent = 'Changes are saved on this device but not yet synced to the shared list. Export to Excel any time — export works offline.';
+    $('syncBannerText').textContent = 'Lost the connection to the shared database. Your last action may not have saved — check your connection and press Retry.';
   }
 
   /* ========= Tabs ========= */
@@ -500,61 +552,38 @@
     const status = sel.status;
     const so = $('soInput').value.trim();
     const villages = $('villagesSelect').value;
-    const now = new Date().toISOString();
-
     const prev = fleet[serial];
-    const rec = prev ? {...prev} : {serial, history:[], created:now};
     const moved = prev && prev.location !== location;
-    rec.location = location;
-    rec.status = status;
-    rec.so = so || (prev ? prev.so : '');
-    rec.villages = villages;
-    rec.updated = now;
-    rec.history = (rec.history||[]).concat([{ts:now, location, status}]).slice(-40);
-    fleet[serial] = rec;
 
-    dirty = true;
-    renderRecent();
-    toast(moved ? `${serial} moved to ${location}` : `${serial} saved at ${location}`);
-
-    // reset form for next scan
-    serialInput.value=''; $('locationSelect').value=''; $('soInput').value='';
-    $('villagesSelect').value=''; setStatus(''); $('existingNote').style.display='none';
-    sel.existing=null; updateSave(); serialInput.focus();
-
-    await pushFleet();
-  });
-
-  async function pushFleet(){
-    const ok = await Store.setJSON(KEY_FLEET, fleet, true);
-    if(ok){ dirty=false; }
-    updateBanner();
-    return ok;
-  }
-  $('syncRetryBtn').addEventListener('click', async ()=>{
-    const ok = await pushFleet();
-    toast(ok ? 'Synced to shared list' : 'Still offline — data is safe locally, export any time');
-  });
-  setInterval(()=>{ if(dirty) pushFleet(); }, 20000);
-
-  // pull remote changes periodically, merging by most-recent-update per serial
-  async function pullFleet(){
-    const remote = await Store.getJSON(KEY_FLEET, true, null);
-    if(!remote) return;
-    let changed=false;
-    for(const [serial, rrec] of Object.entries(remote)){
-      const local = fleet[serial];
-      if(!local || new Date(rrec.updated) > new Date(local.updated)){ fleet[serial]=rrec; changed=true; }
-    }
-    if(changed){
+    $('saveBtn').disabled = true;
+    const ok = await insertScanEvent({serial, location, status, so: so || (prev?prev.so:''), villages});
+    if(ok){
       renderRecent();
       if($('view-board').classList.contains('active')) renderBoard();
       if($('view-all').classList.contains('active')) renderAll();
-      if($('view-map').classList.contains('active')) renderMap();
-      if($('view-match').classList.contains('active')) renderMatch();
+      toast(moved ? `${serial} moved to ${location}` : `${serial} saved at ${location}`);
+      serialInput.value=''; $('locationSelect').value=''; $('soInput').value='';
+      $('villagesSelect').value=''; setStatus(''); $('existingNote').style.display='none';
+      sel.existing=null;
     }
+    updateSave(); serialInput.focus();
+  });
+
+  $('syncRetryBtn').addEventListener('click', async ()=>{
+    await pullFleet();
+    toast(online ? 'Synced' : 'Still offline — check connection');
+  });
+
+  // Refresh current state + history from Supabase; re-renders whichever tab is open.
+  async function pullFleet(){
+    await loadFleetFromSupabase();
+    renderRecent();
+    if($('view-board').classList.contains('active')) renderBoard();
+    if($('view-all').classList.contains('active')) renderAll();
+    if($('view-map').classList.contains('active')) renderMap();
+    if($('view-match').classList.contains('active')) renderMatch();
   }
-  setInterval(()=>{ if(!dirty) pullFleet(); }, 15000);
+  setInterval(pullFleet, 15000);
   setInterval(async ()=>{
     const before = JSON.stringify(orders);
     await loadOrders();
@@ -723,16 +752,36 @@
   $('refreshBtn').addEventListener('click', async ()=>{ await pullFleet(); renderAll(); toast('Refreshed'); });
 
   /* ========= Order Matching ========= */
-  const KEY_ORDERS = 'cars:orders';
   /* orders = { SO: {so, customer, model, status, raw, imported} } */
   let orders = {};
   let matchSelectedOrder = null;
 
   async function loadOrders(){
-    const remote = await Store.getJSON(KEY_ORDERS, true, null);
-    if(remote) orders = remote;
+    const { data, error } = await sb.from('pending_orders').select('*');
+    if(error){ netFail(error); return; }
+    orders = {};
+    data.forEach(o=>{ orders[o.sales_order] = {
+      so:o.sales_order, customer:o.customer, model:o.model,
+      status:o.order_status, raw:o.raw, imported:o.imported_at
+    };});
+    netOK();
   }
-  async function pushOrders(){ await Store.setJSON(KEY_ORDERS, orders, true); }
+  async function pushOrders(){
+    const { data: userData } = await sb.auth.getUser();
+    const user = userData ? userData.user : null;
+    const rows = Object.values(orders).map(o=>({
+      sales_order: o.so, customer: o.customer, model: o.model,
+      order_status: o.status, raw: o.raw, imported_by: user ? user.id : null
+    }));
+    if(!rows.length) return;
+    const { error } = await sb.from('pending_orders').upsert(rows, {onConflict:'sales_order'});
+    if(error) netFail(error); else netOK();
+  }
+  async function clearOrdersRemote(soList){
+    if(!soList.length) return;
+    const { error } = await sb.from('pending_orders').delete().in('sales_order', soList);
+    if(error) netFail(error); else netOK();
+  }
 
   function normSO(s){ return String(s||'').trim().toUpperCase(); }
 
@@ -789,9 +838,10 @@
 
   $('clearOrdersBtn').addEventListener('click', async ()=>{
     if(!Object.keys(orders).length){ toast('No imported orders to clear'); return; }
+    const soList = Object.keys(orders);
     orders = {};
     matchSelectedOrder = null;
-    await pushOrders();
+    await clearOrdersRemote(soList);
     renderMatch();
     toast('Imported orders cleared');
   });
@@ -842,15 +892,13 @@
   async function assignOrderToVehicle(so, serial){
     const rec = fleet[serial];
     if(!rec) return;
-    rec.so = so;
-    rec.updated = new Date().toISOString();
-    rec.history = (rec.history||[]).concat([{ts:rec.updated, location:rec.location, status:rec.status, note:'Matched to SO# '+so}]).slice(-40);
-    fleet[serial] = rec;
-    dirty = true;
+    const ok = await insertScanEvent({
+      serial, location: rec.location, status: rec.status, so, villages: rec.villages,
+      note: 'Matched to SO# '+so
+    });
     matchSelectedOrder = null;
-    toast(`${serial} matched to SO# ${so}`);
+    if(ok){ toast(`${serial} matched to SO# ${so}`); }
     renderMatch(); renderRecent(); renderAll();
-    await pushFleet();
   }
 
   /* ========= Detail ========= */
@@ -875,9 +923,13 @@
     $('detailOverlay').style.display='flex';
     $('closeDetail').addEventListener('click', closeDetail);
     $('removeBtn').addEventListener('click', async ()=>{
-      delete fleet[serial]; dirty=true; closeDetail();
-      renderRecent(); renderBoard(); renderAll(); toast(serial+' removed');
-      await pushFleet();
+      closeDetail();
+      const ok = await insertScanEvent({
+        serial, location: r.location, status: r.status, so: r.so, villages: r.villages,
+        note: REMOVED_NOTE
+      });
+      renderRecent(); renderBoard(); renderAll();
+      toast(ok ? serial+' removed' : 'Remove failed — check connection');
     });
   }
   function closeDetail(){ $('detailOverlay').style.display='none'; }
@@ -1186,15 +1238,10 @@ ${sheetXml('Movement History', historyRows())}
     $('clearLogBtn').addEventListener('click', ()=>{ Scanner.rawLog=[]; renderScannerTest(); });
   });
 
-  /* ========= Guard against losing unsynced work ========= */
-  window.addEventListener('beforeunload', e=>{
-    if(dirty){ e.preventDefault(); e.returnValue=''; }
-  });
-
   /* ========= Boot ========= */
   (async function boot(){
-    const remote = await Store.getJSON(KEY_FLEET, true, null);
-    if(remote) fleet = remote;
+    await requireLogin();
+    await loadFleetFromSupabase();
     await loadOrders();
     updateNet();
     renderRecent(); renderBoard(); renderAll();
