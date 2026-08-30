@@ -23,7 +23,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
-    --bg:#12151A; --panel:#1B1F26; --raised:#242932; --border:#333A45;
+    --bg:#2B2F36; --panel:#363B44; --raised:#40454F; --border:#4C525C;
     --accent:#4DA3FF; --accent-dim:#2b5c8f;
     --red:#E15252; --yellow:#E8B93B; --green:#3FAE5C;
     --text:#EDEFF2; --muted:#8A929E; --radius:10px;
@@ -240,8 +240,8 @@
 </div>
 
 <div class="tabs">
-  <button class="tab active" data-view="dash">Dashboard</button>
   <button class="tab" data-view="scan">Scan In</button>
+  <button class="tab active" data-view="dash">Dashboard</button>
   <button class="tab" data-view="find">Find a Car</button>
   <button class="tab" data-view="board">Location Board</button>
   <button class="tab" data-view="all">All Vehicles</button>
@@ -255,7 +255,7 @@
 
 <!-- ============ SCAN IN ============ -->
 <!-- ============ DASHBOARD ============ -->
-<section class="view active" id="view-dash">
+<section class="view" id="view-dash">
   <div class="dash-wrap">
     <aside class="dash-side">
       <h2>Lot<br>Performance</h2>
@@ -266,10 +266,9 @@
     </aside>
     <div class="dash-main">
       <div class="gauge-row" id="gaugeRow"></div>
-      <div class="dash-panels">
+      <div class="dash-panels" style="grid-template-columns:1fr 1fr;">
         <div class="dash-panel"><h3>Vehicles by Location</h3><div id="dashLoc"></div></div>
         <div class="dash-panel"><h3>Scan Activity</h3><div id="dashAct"></div></div>
-        <div class="dash-panel"><h3>Open Orders</h3><div id="dashOrd" style="max-height:260px;overflow:auto;"></div></div>
       </div>
       <div class="dash-panels" style="grid-template-columns:1fr 1fr;">
         <div class="dash-panel"><h3>Status Mix</h3><div id="dashStatus"></div></div>
@@ -280,7 +279,7 @@
 </section>
 
 <!-- ============ SCAN IN ============ -->
-<section class="view" id="view-scan">
+<section class="view active" id="view-scan">
   <div class="grid2">
     <div class="panel">
       <h2>Scan In / Move<span class="sub">Scan a serial to place or relocate a vehicle</span></h2>
@@ -291,6 +290,26 @@
       </div>
 
       <div class="existing-note" id="existingNote"></div>
+
+      <div class="field">
+        <label>Color <span class="opt">— auto-fills from reference on scan, or pick/type one</span></label>
+        <input type="text" id="colorInput" list="colorList" placeholder="Start typing or pick a color" autocomplete="off">
+        <datalist id="colorList"></datalist>
+      </div>
+
+      <div class="field">
+        <label>Sales Order Number <span class="opt">— optional, scan or type</span></label>
+        <input type="text" id="soInput" class="mono-in" placeholder="Scan or type SO#" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label>VG?</label>
+        <select id="villagesSelect">
+          <option value="">Select…</option>
+          <option value="Yes">Yes — VG</option>
+          <option value="No">No</option>
+        </select>
+      </div>
 
       <div class="field">
         <label>Location</label>
@@ -316,23 +335,8 @@
       </div>
 
       <div class="field">
-        <label>Color <span class="opt">— auto-fills from reference on scan, or pick/type one</span></label>
-        <input type="text" id="colorInput" list="colorList" placeholder="Start typing or pick a color" autocomplete="off">
-        <datalist id="colorList"></datalist>
-      </div>
-
-      <div class="field">
-        <label>Sales Order Number <span class="opt">— optional, scan or type</span></label>
-        <input type="text" id="soInput" class="mono-in" placeholder="Scan or type SO#" autocomplete="off">
-      </div>
-
-      <div class="field">
-        <label>VG?</label>
-        <select id="villagesSelect">
-          <option value="">Select…</option>
-          <option value="Yes">Yes — VG</option>
-          <option value="No">No</option>
-        </select>
+        <label>Note <span class="opt">— optional, free text</span></label>
+        <input type="text" id="noteInput" placeholder="Add a note for this scan" autocomplete="off">
       </div>
 
       <button class="btn primary" id="saveBtn" disabled>Save location</button>
@@ -502,10 +506,16 @@
   const ARCHIVED_NOTE = 'ARCHIVED_SHIPPED';
 
   /* ========= Version tag =========
-     Bump this string with every deployed change so it's easy to confirm
-     which build is live after a GitHub push. */
-  const APP_VERSION = 'v1.1';
-  { const v=document.getElementById('versionTag'); if(v) v.textContent = APP_VERSION; }
+     APP_VERSION is a human-chosen label — bump it yourself when you want
+     to mark a meaningful milestone (v1.4, v2.0, etc). BUILD_STAMP is NOT
+     hand-edited: the __BUILD_STAMP__ placeholder below is automatically
+     replaced by the GitHub Actions workflow (.github/workflows/deploy.yml)
+     on every push to main, with the commit SHA, run number, and UTC time.
+     If you ever see literal "__BUILD_STAMP__" in the app, it means the
+     workflow didn't run — check the Actions tab in GitHub. */
+  const APP_VERSION = 'v1.3';
+  const BUILD_STAMP = '__BUILD_STAMP__';
+  { const v=document.getElementById('versionTag'); if(v) v.textContent = APP_VERSION + ' · ' + BUILD_STAMP; }
 
   /* ---------- Login gate ---------- */
   async function requireLogin(){
@@ -513,12 +523,12 @@
     if(session) return session;
     return new Promise(resolve=>{
       document.body.insertAdjacentHTML('beforeend', `
-        <div id="loginGate" style="position:fixed;inset:0;background:#12151A;z-index:999;
+        <div id="loginGate" style="position:fixed;inset:0;background:#2B2F36;z-index:999;
           display:flex;align-items:center;justify-content:center;padding:20px;">
-          <div style="background:#1B1F26;border:1px solid #333A45;border-radius:10px;padding:24px;width:100%;max-width:340px;">
+          <div style="background:#363B44;border:1px solid #4C525C;border-radius:10px;padding:24px;width:100%;max-width:340px;">
             <h2 style="font-family:'Barlow Condensed';text-transform:uppercase;margin:0 0 16px;color:#EDEFF2;">CARTLOT Login</h2>
-            <input id="loginEmail" type="email" placeholder="Email" style="width:100%;margin-bottom:10px;padding:11px;border-radius:8px;border:1px solid #333A45;background:#242932;color:#EDEFF2;box-sizing:border-box;">
-            <input id="loginPass" type="password" placeholder="Password" style="width:100%;margin-bottom:14px;padding:11px;border-radius:8px;border:1px solid #333A45;background:#242932;color:#EDEFF2;box-sizing:border-box;">
+            <input id="loginEmail" type="email" placeholder="Email" style="width:100%;margin-bottom:10px;padding:11px;border-radius:8px;border:1px solid #4C525C;background:#40454F;color:#EDEFF2;box-sizing:border-box;">
+            <input id="loginPass" type="password" placeholder="Password" style="width:100%;margin-bottom:14px;padding:11px;border-radius:8px;border:1px solid #4C525C;background:#40454F;color:#EDEFF2;box-sizing:border-box;">
             <button id="loginBtn" style="width:100%;padding:13px;border-radius:8px;border:none;background:#4DA3FF;color:#12151A;font-weight:700;cursor:pointer;">Log in</button>
             <div id="loginErr" style="color:#E15252;font-size:12.5px;margin-top:10px;"></div>
           </div>
@@ -557,6 +567,7 @@
       fleet[v.serial] = {
         serial: v.serial, location: v.location, status: v.status,
         so: v.sales_order || '', villages: v.villages || '', color: v.color || '',
+        note: lastNote || '',
         updated: v.updated_at, history: hist.slice(-40)
       };
     });
@@ -696,9 +707,12 @@
       if(!serialInput.value.trim()) return;
       const f=$('serialFlash'); f.classList.remove('hit'); void f.offsetWidth; f.classList.add('hit');
       checkExisting();
-      $('locationSelect').focus();
+      $('colorInput').focus();
     }
   });
+
+  // Color field: Enter moves on to Sales Order (scanners send Enter)
+  $('colorInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('soInput').focus(); }});
 
   // SO field: Enter just moves on (scanners send Enter)
   $('soInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('villagesSelect').focus(); }});
@@ -724,18 +738,19 @@
     const so = $('soInput').value.trim();
     const villages = $('villagesSelect').value;
     const color = $('colorInput').value.trim();
+    const note = $('noteInput').value.trim();
     const prev = fleet[serial];
     const moved = prev && prev.location !== location;
 
     $('saveBtn').disabled = true;
-    const ok = await insertScanEvent({serial, location, status, so: so || (prev?prev.so:''), villages, color: color || (prev?prev.color:'')});
+    const ok = await insertScanEvent({serial, location, status, so: so || (prev?prev.so:''), villages, color: color || (prev?prev.color:''), note: note || null});
     if(ok){
       renderRecent();
       if($('view-board').classList.contains('active')) renderBoard();
       if($('view-all').classList.contains('active')) renderAll();
       toast(moved ? `${serial} moved to ${location}` : `${serial} saved at ${location}`);
       serialInput.value=''; $('locationSelect').value=''; $('soInput').value='';
-      $('villagesSelect').value=''; $('colorInput').value=''; setStatus(''); $('existingNote').style.display='none';
+      $('villagesSelect').value=''; $('colorInput').value=''; $('noteInput').value=''; setStatus(''); $('existingNote').style.display='none';
       sel.existing=null;
     }
     updateSave(); serialInput.focus();
@@ -835,12 +850,13 @@
     if($('view-map').classList.contains('active')) renderMap();
     if($('view-match').classList.contains('active')) renderMatch();
   }
-  setInterval(pullFleet, 15000);
+  const AUTO_RESYNC_MS = 15 * 60 * 1000; // 15 minutes
+  setInterval(pullFleet, AUTO_RESYNC_MS);
   setInterval(async ()=>{
     const before = JSON.stringify(orders);
     await loadOrders();
     if(JSON.stringify(orders) !== before && $('view-match').classList.contains('active')) renderMatch();
-  }, 20000);
+  }, AUTO_RESYNC_MS);
 
   /* ========= Recent ========= */
   function fleetArray(){
@@ -851,7 +867,7 @@
     $('recentSub').textContent = Object.keys(fleet).length + ' vehicle' + (Object.keys(fleet).length===1?'':'s') + ' tracked';
     if(!arr.length){ $('recentWrap').innerHTML='<div class="empty"><b>Nothing scanned yet</b>Scan a serial number to place your first vehicle.</div>'; return; }
     $('recentWrap').innerHTML = `<table><thead><tr>
-        <th>Serial</th><th>Location</th><th>Status</th><th>Color</th><th>SO#</th><th>VG</th><th>Updated</th>
+        <th>Serial</th><th>Location</th><th>Status</th><th>Color</th><th>SO#</th><th>VG</th><th>Note</th><th>Updated</th>
       </tr></thead><tbody>
       ${arr.map(r=>`<tr data-serial="${esc(r.serial)}">
         <td class="mono">${esc(r.serial)}</td>
@@ -860,6 +876,7 @@
         <td>${esc(r.color)||'—'}</td>
         <td class="mono">${esc(r.so)||'—'}</td>
         <td>${r.villages==='Yes'?'<span class="chip villages">VG</span>':'<span class="chip">No</span>'}</td>
+        <td>${esc(r.note)||'—'}</td>
         <td style="color:var(--muted);font-size:12px;">${new Date(r.updated).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
       </tr>`).join('')}
     </tbody></table>`;
@@ -891,6 +908,7 @@
         <div class="kv"><b>Status</b><span><span class="dot ${esc(r.status)}"></span>${esc(r.status)}</span></div>
         <div class="kv"><b>Sales Order</b><span class="mono">${esc(r.so)||'—'}</span></div>
         <div class="kv"><b>VG</b><span>${esc(r.villages)||'—'}</span></div>
+        <div class="kv"><b>Note</b><span>${esc(r.note)||'—'}</span></div>
         <div class="kv" style="border-bottom:none;"><b>Last updated</b><span>${new Date(r.updated).toLocaleString()}</span></div>
         <button class="btn" style="margin-top:12px;" onclick="window.__openDetail('${esc(r.serial)}')">View history</button>
       </div>`).join('');
@@ -1000,7 +1018,7 @@
 
     if(!rows.length){ $('allWrap').innerHTML='<div class="empty"><b>No matches</b>Try clearing the filters.</div>'; return; }
     $('allWrap').innerHTML = `<table><thead><tr>
-      <th></th><th>Serial</th><th>Location</th><th>Status</th><th>Color</th><th>SO#</th><th>VG</th><th>Dwell</th><th>Updated</th>
+      <th></th><th>Serial</th><th>Location</th><th>Status</th><th>Color</th><th>SO#</th><th>VG</th><th>Dwell</th><th>Note</th><th>Updated</th>
       </tr></thead><tbody>
       ${rows.map(r=>{
         const over = dwellOver(r);
@@ -1012,6 +1030,7 @@
         <td class="mono">${esc(r.so)||'—'}</td>
         <td>${r.villages==='Yes'?'<span class="chip villages">VG</span>':'<span class="chip">No</span>'}</td>
         <td style="${over?'color:var(--red);font-weight:600;':''}">${dwellLabel(dwellHours(r))}${over?' ⚠':''}</td>
+        <td>${esc(r.note)||'—'}</td>
         <td style="color:var(--muted);font-size:12px;">${new Date(r.updated).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
       </tr>`;
       }).join('')}</tbody></table>`;
@@ -1284,6 +1303,7 @@
       <div class="kv"><b>Color</b><span>${esc(r.color)||'—'}</span></div>
       <div class="kv"><b>Sales Order</b><span class="mono">${esc(r.so)||'—'}</span></div>
       <div class="kv"><b>VG</b><span>${esc(r.villages)||'—'}</span></div>
+      <div class="kv"><b>Note</b><span>${esc(r.note)||'—'}</span></div>
       <div class="kv"><b>Dwell time</b><span style="${dwellOver(r)?'color:var(--red);':''}">${dwellLabel(dwellHours(r))}${dwellOver(r)?' ⚠ over alarm threshold':''}</span></div>
       <div class="kv"><b>Last updated</b><span>${new Date(r.updated).toLocaleString()}</span></div>
       <h3 style="font-size:14px;margin:18px 0 8px;">Movement history</h3>
@@ -1329,6 +1349,7 @@
       'Sales Order #': r.so || '',
       'VG': r.villages || '',
       'Dwell Time': dwellLabel(dwellHours(r)),
+      'Note': r.note || '',
       'Last Updated': new Date(r.updated).toLocaleString(),
       'Times Moved': (r.history||[]).length
     }));
@@ -1600,18 +1621,18 @@ ${sheetXml('Movement History', historyRows())}
     const na = start + sweep*frac;
     const [nx,ny]=pol(na, r-14);
     return `<div class="gauge-card"><div class="g-title">${title}</div>
-      <svg viewBox="0 0 130 96">
+      <svg viewBox="0 0 130 108">
         ${arc(s1,s2,segs[0])}${arc(s2,s3,segs[1])}${arc(s3,s4,segs[2])}
         <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="#b9a7f5" stroke-width="3.5" stroke-linecap="round"/>
         <circle cx="${cx}" cy="${cy}" r="5" fill="#8a75e8"/>
         <text x="${cx}" y="${cy+24}" text-anchor="middle" class="g-num">${display}</text>
-        <text x="${cx}" y="${cy+34}" text-anchor="middle" class="g-sub">${sub}</text>
+        <text x="${cx}" y="${cy+36}" text-anchor="middle" class="g-sub">${sub}</text>
       </svg></div>`;
   }
 
   function barChartSVG(items, color){
     if(!items.length) return '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;">No data</div>';
-    const w=300, h=170, padB=34, padL=6, bw=(w-padL*2)/items.length;
+    const w=300, h=185, padB=34, padL=6, bw=(w-padL*2)/items.length;
     const max=Math.max(...items.map(i=>i.value),1);
     let s=`<svg viewBox="0 0 ${w} ${h}">`;
     items.forEach((it,i)=>{
@@ -1669,12 +1690,6 @@ ${sheetXml('Movement History', historyRows())}
     }
     $('dashAct').innerHTML = barChartSVG(actItems, '#E15252');
 
-    const soOnLot = new Set(arr.map(v=>v.so).filter(Boolean));
-    const ordArr = Object.values(orders||{});
-    $('dashOrd').innerHTML = ordArr.length ? `<table class="ord-tbl"><thead><tr><th>SO #</th><th>Customer</th><th></th></tr></thead><tbody>`+
-      ordArr.map(o=>`<tr><td class="mono">${o.so}</td><td>${o.customer||''}</td><td>${soOnLot.has(o.so)?'<span class="ord-ok">✓</span>':'<span class="ord-no">✗</span>'}</td></tr>`).join('')+
-      `</tbody></table>` : '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;">No imported orders</div>';
-
     const yellow = arr.filter(v=>v.status==='YELLOW').length;
     const red = arr.filter(v=>v.status==='RED').length;
     $('dashStatus').innerHTML = barChartSVG([
@@ -1684,8 +1699,8 @@ ${sheetXml('Movement History', historyRows())}
     ]);
 
     const top = dwells.sort((a,b)=>b.h-a.h).slice(0,8);
-    $('dashDwell').innerHTML = top.length ? `<table class="ord-tbl"><thead><tr><th>Serial</th><th>Location</th><th>Dwell</th></tr></thead><tbody>`+
-      top.map(d=>`<tr><td class="mono">${d.v.serial}</td><td>${d.v.location}</td><td class="${d.h>DWELL_ALARM_HOURS?'dwell-flag':''}">${dwellLabel(d.h)}</td></tr>`).join('')+
+    $('dashDwell').innerHTML = top.length ? `<table class="ord-tbl"><thead><tr><th>Serial</th><th>Location</th><th>Status</th><th>Dwell</th></tr></thead><tbody>`+
+      top.map(d=>`<tr><td class="mono">${d.v.serial}</td><td>${d.v.location}</td><td><span class="dot ${esc(d.v.status)}"></span>${esc(d.v.status)}</td><td class="${d.h>DWELL_ALARM_HOURS?'dwell-flag':''}">${dwellLabel(d.h)}</td></tr>`).join('')+
       `</tbody></table>` : '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;">No vehicles on lot</div>';
   }
 
