@@ -203,9 +203,7 @@
   <span id="versionTag" class="chip mono" title="Build version"></span>
   <span id="netState" class="chip">● online</span>
   <button class="btn" id="exportBtn">⭳ Export Excel</button>
-  <button class="btn ghost" id="exportCsvBtn">CSV</button>
   <button class="btn accent" id="emailBtn">✉ Email</button>
-  <button class="btn ghost" id="scannerTestBtn">⌨ Scanner test</button>
   <button class="btn" id="manualSaveBtn">⭯ Save</button>
   <button class="btn ghost" id="logoffBtn">Log off</button>
 </header>
@@ -223,6 +221,7 @@
   <button class="tab" data-view="map">Building Map</button>
   <button class="tab" data-view="match">Order Match</button>
   <button class="tab" data-view="archive">Archive</button>
+  <button class="tab" data-view="tools">Tools</button>
 </div>
 
 <main>
@@ -232,11 +231,6 @@
   <div class="grid2">
     <div class="panel">
       <h2>Scan In / Move<span class="sub">Scan a serial to place or relocate a vehicle</span></h2>
-      <div class="toolbar" style="margin:-4px 0 14px;">
-        <input type="file" id="colorRefFile" accept=".csv,.xlsx,.xls" style="display:none;">
-        <button class="btn ghost" id="importColorRefBtn" style="flex:none;">⭱ Import Color Reference</button>
-        <span class="chip" id="colorRefCount" style="flex:none;">0 colors loaded</span>
-      </div>
 
       <div class="scan-wrap">
         <input id="serialInput" class="scan-input" type="text" placeholder="Scan or type Serial Number, then Enter" autocomplete="off">
@@ -366,13 +360,10 @@
         <h2 style="display:inline;">Order Matching</h2>
         <div class="sub" style="margin-top:4px;">Unassigned staged vehicles vs. open sales orders</div>
       </div>
-      <div style="display:flex;gap:8px;">
-        <input type="file" id="ordersFile" accept=".csv,.xlsx,.xls" style="display:none;">
-        <button class="btn accent" id="importOrdersBtn">⭱ Import Orders</button>
-        <button class="btn ghost" id="clearOrdersBtn">Clear imported</button>
-      </div>
+      <span class="chip" id="importedOrdersCount">0 orders loaded</span>
     </div>
-    <div class="map-upload-hint" style="margin:6px 0 16px;">Import a CSV/Excel of pending orders (needs a Sales Order # column — Customer/Model columns optional). Tap an order, then tap a vehicle to link them by Sales Order Number.</div>
+    <div class="map-upload-hint" style="margin:6px 0 16px;">Tap an order, then tap a vehicle to link them by Sales Order Number. Import or clear the order list from the <b>Tools</b> tab.</div>
+    <input type="file" id="ordersFile" accept=".csv,.xlsx,.xls" style="display:none;">
     <div class="match-grid">
       <div>
         <div class="match-col-head"><h3 style="font-size:14px;">Open Orders</h3><span class="chip" id="openOrdersCount">0</span></div>
@@ -394,13 +385,50 @@
         <h2 style="display:inline;">Archive</h2>
         <div class="sub" style="margin-top:4px;">Shipped &amp; manually archived vehicles</div>
       </div>
-      <div style="display:flex;gap:8px;">
-        <input type="file" id="shippedFile" accept=".csv,.xlsx,.xls" style="display:none;">
-        <button class="btn accent" id="importShippedBtn">⭱ Import Shipped</button>
-      </div>
     </div>
-    <div class="map-upload-hint" style="margin:6px 0 16px;">Import a CSV/Excel of shipped serials (needs a Serial column) to move them out of active staging and into the archive, with dwell time recorded automatically. Records are never deleted — only moved here.</div>
+    <div class="map-upload-hint" style="margin:6px 0 16px;">Records are never deleted — only moved here. Import shipped serials from the <b>Tools</b> tab.</div>
+    <input type="file" id="shippedFile" accept=".csv,.xlsx,.xls" style="display:none;">
     <div id="archiveWrap"></div>
+  </div>
+</section>
+
+<!-- ============ TOOLS ============ -->
+<section class="view" id="view-tools">
+  <div class="panel">
+    <h2>Tools &amp; Imports<span class="sub">Reference data, diagnostics, and less-frequent actions</span></h2>
+
+    <div style="margin-top:18px;padding:14px;background:var(--raised);border:1px solid var(--border);border-radius:8px;">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Sales Orders</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Import a CSV/Excel of pending orders (needs a Sales Order # column — Customer/Model columns optional) for the Order Match tab.</div>
+      <button class="btn accent" id="importOrdersBtn">⭱ Import Orders</button>
+      <button class="btn ghost" id="clearOrdersBtn">Clear imported</button>
+    </div>
+
+    <div style="margin-top:12px;padding:14px;background:var(--raised);border:1px solid var(--border);border-radius:8px;">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Serial → Color Reference</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Import a CSV/Excel of Serial + Color so the Color field auto-fills when a serial is scanned.</div>
+      <input type="file" id="colorRefFile" accept=".csv,.xlsx,.xls" style="display:none;">
+      <button class="btn accent" id="importColorRefBtn">⭱ Import Color Reference</button>
+      <span class="chip" id="colorRefCount" style="margin-left:4px;">0 colors loaded</span>
+    </div>
+
+    <div style="margin-top:12px;padding:14px;background:var(--raised);border:1px solid var(--border);border-radius:8px;">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Shipped Vehicles</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Import a CSV/Excel of shipped serials (needs a Serial column) to move them out of active staging and into the Archive tab, with dwell time recorded automatically.</div>
+      <button class="btn accent" id="importShippedBtn">⭱ Import Shipped</button>
+    </div>
+
+    <div style="margin-top:12px;padding:14px;background:var(--raised);border:1px solid var(--border);border-radius:8px;">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Export</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">The Export Excel button in the header covers most needs — CSV is here for tools that only accept plain text.</div>
+      <button class="btn ghost" id="exportCsvBtn">CSV</button>
+    </div>
+
+    <div style="margin-top:12px;padding:14px;background:var(--raised);border:1px solid var(--border);border-radius:8px;">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Scanner Diagnostics</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Test that a connected Bluetooth scanner is sending keystrokes correctly.</div>
+      <button class="btn ghost" id="scannerTestBtn">⌨ Scanner test</button>
+    </div>
   </div>
 </section>
 
@@ -423,7 +451,7 @@
   /* ========= Version tag =========
      Bump this string with every deployed change so it's easy to confirm
      which build is live after a GitHub push. */
-  const APP_VERSION = 'v1.0';
+  const APP_VERSION = 'v1.1';
   { const v=document.getElementById('versionTag'); if(v) v.textContent = APP_VERSION; }
 
   /* ---------- Login gate ---------- */
@@ -563,6 +591,7 @@
       if(t.dataset.view==='map') renderMap();
       if(t.dataset.view==='match') renderMatch();
       if(t.dataset.view==='archive') renderArchive();
+      if(t.dataset.view==='tools') updateOrdersCountChip();
       if(t.dataset.view==='find') setTimeout(()=>$('findInput').focus(),50);
       if(t.dataset.view==='scan') setTimeout(()=>$('serialInput').focus(),50);
     });
@@ -947,6 +976,14 @@
       status:o.order_status, raw:o.raw, imported:o.imported_at
     };});
     netOK();
+    updateOrdersCountChip();
+  }
+  function updateOrdersCountChip(){
+    const n = Object.keys(orders).length;
+    ['importedOrdersCount'].forEach(id=>{
+      const el = $(id);
+      if(el) el.textContent = n + ' order' + (n===1?'':'s') + ' loaded';
+    });
   }
   async function pushOrders(){
     const { data: userData } = await sb.auth.getUser();
@@ -1008,6 +1045,7 @@
       const n = ingestOrderRows(rows);
       if(n){
         await pushOrders();
+        updateOrdersCountChip();
         toast(`Imported ${n} order${n===1?'':'s'}`);
         renderMatch();
       }
@@ -1024,6 +1062,7 @@
     orders = {};
     matchSelectedOrder = null;
     await clearOrdersRemote(soList);
+    updateOrdersCountChip();
     renderMatch();
     toast('Imported orders cleared');
   });
