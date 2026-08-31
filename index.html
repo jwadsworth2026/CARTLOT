@@ -277,7 +277,7 @@
       </div>
       <div class="dash-panels" style="grid-template-columns:1fr 1fr;">
         <div class="dash-panel"><h3>Status Mix</h3><div id="dashStatus"></div></div>
-        <div class="dash-panel"><h3>Longest Dwell (Top 8)</h3><div id="dashDwell" style="max-height:240px;overflow:auto;"></div></div>
+        <div class="dash-panel"><h3>Top 10 Dwell Time</h3><div id="dashDwell" style="max-height:240px;overflow:auto;"></div></div>
       </div>
     </div>
   </div>
@@ -1716,10 +1716,11 @@ ${sheetXml('Movement History', historyRows())}
       {label:'Red', value:red, color:'var(--red)'}
     ]);
 
-    const top = dwells.sort((a,b)=>b.h-a.h).slice(0,8);
+    const top = dwells.sort((a,b)=>b.h-a.h).slice(0,10);
     $('dashDwell').innerHTML = top.length ? `<table class="ord-tbl"><thead><tr><th>Serial</th><th>Location</th><th>Status</th><th>Dwell</th></tr></thead><tbody>`+
-      top.map(d=>`<tr><td class="mono">${d.v.serial}</td><td>${d.v.location}</td><td><span class="dot ${esc(d.v.status)}"></span>${esc(d.v.status)}</td><td class="${d.h>DWELL_ALARM_HOURS?'dwell-flag':''}">${dwellLabel(d.h)}</td></tr>`).join('')+
+      top.map(d=>`<tr data-serial="${esc(d.v.serial)}"><td class="mono">${d.v.serial}</td><td>${d.v.location}</td><td><span class="dot ${esc(d.v.status)}"></span>${esc(d.v.status)}</td><td class="${d.h>DWELL_ALARM_HOURS?'dwell-flag':''}">${dwellLabel(d.h)}</td></tr>`).join('')+
       `</tbody></table>` : '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;">No vehicles on lot</div>';
+    bindRows('#dashDwell');
   }
 
   /* ========= Boot ========= */
