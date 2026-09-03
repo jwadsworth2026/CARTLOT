@@ -213,32 +213,32 @@
   .range-btn{background:var(--raised);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:9px 10px;font-size:12px;text-align:left;cursor:pointer;font-weight:700;text-transform:uppercase;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .range-btn.active{background:var(--accent);color:#FFFFFF;border-color:var(--accent);}
   .dash-main{display:flex;flex-direction:column;gap:14px;min-width:0;}
-  .gauge-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
-  .gauge-card{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 8px 4px;text-align:center;min-width:0;
+  .gauge-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;}
+  .gauge-card{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 14px 14px;text-align:center;min-width:0;
     box-shadow:0 1px 3px rgba(20,30,50,.08),0 4px 14px rgba(20,30,50,.06);transition:box-shadow .18s ease,transform .18s ease;}
   .gauge-card:hover{box-shadow:0 2px 5px rgba(20,30,50,.10),0 8px 20px rgba(20,30,50,.10);transform:translateY(-1px);}
-  .gauge-card .g-title{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text);font-weight:700;margin-bottom:2px;
-    padding-right:26px;text-align:left;padding-left:2px;}
-  .gauge-card svg.g-ring{width:100%;max-width:130px;}
-  .g-num{font-family:'Barlow Condensed';font-size:24px;font-weight:800;fill:var(--text);}
-  .g-sub{font-size:10.5px;fill:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
-  .card-badge{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;
+  .gauge-card .g-title{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--text);font-weight:700;margin-bottom:4px;
+    padding-right:34px;text-align:left;padding-left:2px;}
+  .gauge-card svg.g-ring{width:100%;max-width:168px;}
+  .g-num{font-family:'Barlow Condensed';font-size:22px;font-weight:800;fill:var(--text);}
+  .g-sub{font-size:10px;fill:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  .card-badge{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;
     display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,.18);}
-  .card-badge svg{width:14px;height:14px;}
-  .field-card{padding-bottom:12px;}
-  .field-num{font-family:'Barlow Condensed';font-size:36px;font-weight:800;color:var(--text);line-height:1;margin:4px 0 9px;text-align:left;padding-left:2px;}
-  .field-trends{display:flex;flex-direction:column;gap:5px;}
-  .trend-pill{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:800;
-    padding:4px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.02em;}
-  .trend-pill svg{width:11px;height:11px;flex:none;}
+  .card-badge svg{width:18px;height:18px;}
+  .field-card{padding-bottom:16px;}
+  .field-num{font-family:'Barlow Condensed';font-size:46px;font-weight:800;color:var(--text);line-height:1;margin:8px 0 14px;text-align:left;padding-left:2px;}
+  .field-trends{display:flex;flex-direction:column;gap:8px;}
+  .trend-pill{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:800;
+    padding:6px 11px;border-radius:999px;text-transform:uppercase;letter-spacing:.02em;}
+  .trend-pill svg{width:13px;height:13px;flex:none;}
   .trend-pill .tp-label{color:var(--muted);font-weight:700;}
   .trend-pill .tp-delta{margin-left:auto;}
   .trend-pill.up{background:rgba(179,38,30,.12);color:var(--red);}
   .trend-pill.down{background:rgba(27,127,66,.12);color:var(--green);}
   .trend-pill.flat{background:var(--raised);color:var(--muted);}
-  .dash-panels{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .dash-panels{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
   @media(max-width:980px){.dash-panels{grid-template-columns:1fr;}}
-  .dash-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px;min-width:0;overflow:hidden;
+  .dash-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;min-width:0;overflow:hidden;
     box-shadow:0 1px 3px rgba(20,30,50,.08),0 4px 14px rgba(20,30,50,.06);}
   .dash-panel h3{font-size:13.5px;text-align:left;margin-bottom:10px;color:var(--text);text-transform:uppercase;letter-spacing:.04em;
     display:flex;align-items:center;gap:7px;}
@@ -554,7 +554,7 @@
      on every push to main, with the commit SHA, run number, and UTC time.
      If you ever see literal "__BUILD_STAMP__" in the app, it means the
      workflow didn't run — check the Actions tab in GitHub. */
-  const APP_VERSION = 'v1.4';
+  const APP_VERSION = 'v1.5 (Rev 6)';
   const BUILD_STAMP = '__BUILD_STAMP__';
   { const v=document.getElementById('versionTag'); if(v) v.textContent = APP_VERSION + ' · ' + BUILD_STAMP; }
 
@@ -1671,7 +1671,7 @@ ${sheetXml('Movement History', historyRows())}
   }
 
   function gaugeSVG(title, value, max, display, sub, invert, icon, badgeColor){
-    const cx=65, cy=62, r=44, start=-200, sweep=220;
+    const cx=65, cy=50, r=40, start=-200, sweep=220;
     const pol=(deg,rad)=>{const a=(deg-90)*Math.PI/180;return [cx+rad*Math.cos(a),cy+rad*Math.sin(a)];};
     const arc=(a1,a2,color)=>{
       const [x1,y1]=pol(a1,r),[x2,y2]=pol(a2,r);
@@ -1682,15 +1682,15 @@ ${sheetXml('Movement History', historyRows())}
     const s1=start, s2=start+sweep/3, s3=start+2*sweep/3, s4=start+sweep;
     const frac = Math.max(0, Math.min(1, max>0 ? value/max : 0));
     const na = start + sweep*frac;
-    const [nx,ny]=pol(na, r-14);
+    const [nx,ny]=pol(na, r-13);
     const badge = icon ? `<div class="card-badge" style="background:${badgeColor||'var(--accent)'}">${iconSVG(icon,'#fff')}</div>` : '';
     return `<div class="gauge-card">${badge}<div class="g-title">${title}</div>
-      <svg class="g-ring" viewBox="0 0 130 108">
+      <svg class="g-ring" viewBox="0 0 130 132">
         ${arc(s1,s2,segs[0])}${arc(s2,s3,segs[1])}${arc(s3,s4,segs[2])}
         <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="#5B4FC4" stroke-width="3.5" stroke-linecap="round"/>
         <circle cx="${cx}" cy="${cy}" r="5" fill="#5B4FC4"/>
-        <text x="${cx}" y="${cy+24}" text-anchor="middle" class="g-num">${display}</text>
-        <text x="${cx}" y="${cy+36}" text-anchor="middle" class="g-sub">${sub}</text>
+        <text x="${cx}" y="112" text-anchor="middle" class="g-num">${display}</text>
+        <text x="${cx}" y="126" text-anchor="middle" class="g-sub">${sub}</text>
       </svg></div>`;
   }
 
