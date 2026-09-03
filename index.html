@@ -186,6 +186,14 @@
   .map-pin{width:22px;height:22px;border-radius:50%;border:2.5px solid #FFFFFF;cursor:pointer;flex:0 0 auto;box-shadow:0 1px 3px rgba(0,0,0,.55);}
   .map-pin.RED{background:var(--red);} .map-pin.YELLOW{background:var(--yellow);} .map-pin.GREEN{background:var(--green);}
   .map-legend{display:flex;gap:16px;margin-top:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);}
+  /* Locate Order map: dim zones with no match, make the matching ones glow */
+  .map-zone.zone-dim{opacity:.22;filter:grayscale(55%);transition:opacity .25s ease,filter .25s ease;}
+  .map-zone.zone-hit{border-color:#00C2FF;border-width:3px;background:rgba(0,194,255,.14);
+    box-shadow:0 0 0 2px #00C2FF,0 0 16px rgba(0,194,255,.6);animation:neonPulse 2.2s ease-in-out infinite;z-index:2;}
+  .map-pin.zone-hit-pin{width:26px;height:26px;border-width:3px;box-shadow:0 0 0 2px #00C2FF,0 0 10px rgba(0,194,255,.7);}
+  .zone-hit-badge{position:absolute;top:6px;right:6px;background:#00C2FF;color:#fff;font-family:'Barlow Condensed';
+    font-weight:800;font-size:13px;line-height:1;padding:3px 8px;border-radius:999px;
+    box-shadow:0 2px 5px rgba(0,0,0,.3);z-index:3;pointer-events:none;}
   .map-legend span{display:inline-flex;align-items:center;gap:6px;}
   .map-legend i{width:10px;height:10px;border-radius:50%;display:inline-block;}
   .map-upload-hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5;}
@@ -196,6 +204,14 @@
   .match-col-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
   .order-card{background:var(--raised);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;}
   .order-card .so{font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--accent);}
+  .locate-btn{background:transparent;border:1px solid var(--accent-dim);color:var(--accent);border-radius:6px;
+    width:26px;height:26px;flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .locate-btn svg{width:14px;height:14px;}
+  .locate-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .so-link{display:inline-flex;align-items:center;gap:4px;color:var(--accent);cursor:pointer;font-weight:700;
+    text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;}
+  .so-link svg{width:12px;height:12px;flex:none;}
+  .so-link:hover{color:var(--text);}
   .order-card .meta{font-size:12px;color:var(--muted);margin-top:3px;}
   .order-card.selected{border-color:var(--accent);box-shadow:0 0 0 2px rgba(32,84,199,.2);}
   .veh-card{background:var(--raised);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;
@@ -281,6 +297,7 @@
   <button class="tab" data-view="all">All Vehicles</button>
   <button class="tab" data-view="map">Building Map</button>
   <button class="tab" data-view="match">Order Match</button>
+  <button class="tab" data-view="locate">Locate Order</button>
   <button class="tab" data-view="archive">Archive</button>
   <button class="tab" data-view="tools">Tools</button>
 </div>
@@ -473,6 +490,25 @@
   </div>
 </section>
 
+<!-- ============ LOCATE ORDER ============ -->
+<section class="view" id="view-locate">
+  <div class="panel">
+    <h2>Locate Order<span class="sub">Enter a Sales Order # to see where its vehicles are on the map</span></h2>
+    <div class="scan-wrap" style="max-width:420px;">
+      <input id="locateSoInput" class="scan-input" type="text" placeholder="Enter Sales Order #, then Enter" autocomplete="off" style="font-size:18px;padding:12px 14px;">
+    </div>
+    <div id="locateSummary" style="margin:12px 0 2px;font-size:13px;"></div>
+  </div>
+  <div class="panel" style="margin-top:14px;">
+    <div class="map-frame" id="locateMapFrame"></div>
+    <div class="map-legend">
+      <span><i style="background:#00C2FF"></i>Vehicles on this order</span>
+      <span style="opacity:.6;">Other locations are dimmed</span>
+    </div>
+  </div>
+  <div id="locateResults" style="margin-top:14px;"></div>
+</section>
+
 <!-- ============ ARCHIVE ============ -->
 <section class="view" id="view-archive">
   <div class="panel">
@@ -554,7 +590,7 @@
      on every push to main, with the commit SHA, run number, and UTC time.
      If you ever see literal "__BUILD_STAMP__" in the app, it means the
      workflow didn't run — check the Actions tab in GitHub. */
-  const APP_VERSION = 'v1.5 (Rev 6)';
+  const APP_VERSION = 'v1.6 (Rev 7)';
   const BUILD_STAMP = '__BUILD_STAMP__';
   { const v=document.getElementById('versionTag'); if(v) v.textContent = APP_VERSION + ' · ' + BUILD_STAMP; }
 
@@ -705,6 +741,7 @@
       if(t.dataset.view==='all') renderAll();
       if(t.dataset.view==='map') renderMap();
       if(t.dataset.view==='match') renderMatch();
+      if(t.dataset.view==='locate') renderLocateMap($('locateSoInput').value);
       if(t.dataset.view==='archive') renderArchive();
       if(t.dataset.view==='tools') updateOrdersCountChip();
       if(t.dataset.view==='find') setTimeout(()=>$('findInput').focus(),50);
@@ -894,6 +931,7 @@
     if($('view-all').classList.contains('active')) renderAll();
     if($('view-map').classList.contains('active')) renderMap();
     if($('view-match').classList.contains('active')) renderMatch();
+    if($('view-locate').classList.contains('active')) renderLocateMap($('locateSoInput').value);
   }
   const AUTO_RESYNC_MS = 15 * 60 * 1000; // 15 minutes
   setInterval(pullFleet, AUTO_RESYNC_MS);
@@ -919,16 +957,35 @@
         <td>${esc(r.location)}</td>
         <td><span class="dot ${esc(r.status)}"></span>${esc(r.status)}</td>
         <td>${esc(r.color)||'—'}</td>
-        <td class="mono">${esc(r.so)||'—'}</td>
+        <td class="mono">${soLink(r.so)}</td>
         <td>${r.villages==='Yes'?'<span class="chip villages">VG</span>':'<span class="chip">No</span>'}</td>
         <td>${esc(r.note)||'—'}</td>
         <td style="color:var(--muted);font-size:12px;">${new Date(r.updated).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
       </tr>`).join('')}
     </tbody></table>`;
     bindRows('#recentWrap');
+    bindSoLinks('#recentWrap');
   }
   function bindRows(scope){
     document.querySelectorAll(scope+' tbody tr').forEach(tr=> tr.addEventListener('click', ()=>openDetail(tr.dataset.serial)));
+  }
+
+  // Renders a Sales Order # as a clickable chip (when present) that jumps to
+  // the Locate Order map. Falls back to a plain dash when there's no SO#.
+  function soLink(so){
+    if(!so) return '—';
+    return `<span class="so-link" data-so="${esc(so)}" title="Locate this order on the map">${esc(so)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-7.8 7-13a7 7 0 0 0-14 0c0 5.2 7 13 7 13z"/><circle cx="12" cy="9" r="2.3"/></svg></span>`;
+  }
+  function bindSoLinks(scope){
+    document.querySelectorAll((scope||'')+' .so-link').forEach(el=>{
+      el.addEventListener('click', e=>{ e.stopPropagation(); gotoLocateOrder(el.dataset.so); });
+    });
+  }
+  function gotoLocateOrder(so){
+    closeDetail();
+    document.querySelector('.tab[data-view="locate"]').click();
+    $('locateSoInput').value = so;
+    renderLocateMap(so);
   }
 
   /* ========= Find ========= */
@@ -951,12 +1008,13 @@
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);">Serial ${esc(r.serial)}</div>
         <div class="found-loc">${esc(r.location)}</div>
         <div class="kv"><b>Status</b><span><span class="dot ${esc(r.status)}"></span>${esc(r.status)}</span></div>
-        <div class="kv"><b>Sales Order</b><span class="mono">${esc(r.so)||'—'}</span></div>
+        <div class="kv"><b>Sales Order</b><span class="mono">${soLink(r.so)}</span></div>
         <div class="kv"><b>VG</b><span>${esc(r.villages)||'—'}</span></div>
         <div class="kv"><b>Note</b><span>${esc(r.note)||'—'}</span></div>
         <div class="kv" style="border-bottom:none;"><b>Last updated</b><span>${new Date(r.updated).toLocaleString()}</span></div>
         <button class="btn" style="margin-top:12px;" onclick="window.__openDetail('${esc(r.serial)}')">View history</button>
       </div>`).join('');
+    bindSoLinks('#findResult');
   }
   window.__openDetail = s => openDetail(s);
 
@@ -1044,6 +1102,54 @@
       p.addEventListener('click', ()=>openDetail(p.dataset.serial)));
   }
 
+  // Locate Order: highlights only the map zones holding vehicles matched to
+  // a given Sales Order #, dims everywhere else, and lists the matches.
+  function renderLocateMap(soRaw){
+    const frame = $('locateMapFrame');
+    if(!frame.classList.contains('has-bg')){
+      frame.style.backgroundImage = `url(${FLOORPLAN_IMG})`;
+      frame.classList.add('has-bg');
+    }
+    const term = normSO(soRaw);
+    const all = fleetArray();
+    const matches = term ? all.filter(r => normSO(r.so) === term) : [];
+    const byLoc = {};
+    matches.forEach(r=>{ (byLoc[r.location] = byLoc[r.location]||[]).push(r); });
+    const locCount = Object.keys(byLoc).length;
+
+    frame.innerHTML = LOCATIONS.map(loc=>{
+      const z = MAP_ZONES[loc];
+      const hits = byLoc[loc] || [];
+      const isHit = hits.length>0;
+      const cls = !term ? 'map-zone' : (isHit ? 'map-zone zone-hit' : 'map-zone zone-dim');
+      const badge = isHit ? `<div class="zone-hit-badge">${hits.length}</div>` : '';
+      return `<div class="${cls}" style="left:${z.left};top:${z.top};width:${z.width};height:${z.height};">
+        ${badge}
+        <div class="map-zone-label">${esc(loc)}</div>
+        <div class="map-pins">
+          ${hits.map(r=>`<div class="map-pin ${esc(r.status)} zone-hit-pin" title="${esc(r.serial)} — ${esc(r.status)}" data-serial="${esc(r.serial)}"></div>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
+    frame.querySelectorAll('.map-pin').forEach(p=>
+      p.addEventListener('click', ()=>openDetail(p.dataset.serial)));
+
+    const summary = $('locateSummary');
+    if(!term){
+      summary.innerHTML = '';
+    } else if(!matches.length){
+      summary.innerHTML = `<span style="color:var(--muted);">No staged vehicles are matched to Sales Order <b style="color:var(--text);">${esc(soRaw.trim())}</b> yet.</span>`;
+    } else {
+      summary.innerHTML = `<span style="font-weight:700;color:var(--text);">${matches.length} vehicle${matches.length===1?'':'s'}</span> on SO# <b>${esc(soRaw.trim())}</b>, across ${locCount} location${locCount===1?'':'s'}`;
+    }
+
+    $('locateResults').innerHTML = matches.length ? `<table class="ord-tbl"><thead><tr><th>Serial</th><th>Location</th><th>Status</th><th>Color</th><th>Dwell</th></tr></thead><tbody>`+
+      matches.map(r=>`<tr data-serial="${esc(r.serial)}"><td class="mono">${esc(r.serial)}</td><td>${esc(r.location)}</td><td><span class="dot ${esc(r.status)}"></span>${esc(r.status)}</td><td>${esc(r.color)||'—'}</td><td>${dwellLabel(dwellHours(r))}</td></tr>`).join('')+
+      `</tbody></table>` : '';
+    bindRows('#locateResults');
+  }
+  $('locateSoInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); renderLocateMap($('locateSoInput').value); }});
+
   /* ========= All vehicles ========= */
   function renderAll(){
     const locSel=$('filterLoc');
@@ -1067,7 +1173,7 @@
         <td class="mono">${esc(r.serial)}</td><td>${esc(r.location)}</td>
         <td><span class="dot ${esc(r.status)}"></span>${esc(r.status)}</td>
         <td>${esc(r.color)||'—'}</td>
-        <td class="mono">${esc(r.so)||'—'}</td>
+        <td class="mono">${soLink(r.so)}</td>
         <td>${r.villages==='Yes'?'<span class="chip villages">VG</span>':'<span class="chip">No</span>'}</td>
         <td style="${over?'color:var(--red);font-weight:600;':''}">${dwellLabel(dwellHours(r))}${over?' ⚠':''}</td>
         <td>${esc(r.note)||'—'}</td>
@@ -1075,6 +1181,7 @@
       </tr>`;
       }).join('')}</tbody></table>`;
     bindRows('#allWrap');
+    bindSoLinks('#allWrap');
   }
   ['searchAll','filterLoc','filterStatus','filterVillages'].forEach(id=>{
     $(id).addEventListener('input', renderAll); $(id).addEventListener('change', renderAll);
@@ -1198,7 +1305,12 @@
 
     $('openOrdersWrap').innerHTML = openOrders.length ? openOrders.map(o=>`
       <div class="order-card ${matchSelectedOrder===o.so?'selected':''}" data-so="${esc(o.so)}">
-        <div class="so">SO# ${esc(o.so)}</div>
+        <div class="so" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span>SO# ${esc(o.so)}</span>
+          <button class="locate-btn" data-so="${esc(o.so)}" title="Locate this order on the map">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-7.8 7-13a7 7 0 0 0-14 0c0 5.2 7 13 7 13z"/><circle cx="12" cy="9" r="2.3"/></svg>
+          </button>
+        </div>
         <div class="meta">${esc(o.customer)||'No customer listed'}${o.model?' · '+esc(o.model):''}${o.status?' · '+esc(o.status):''}</div>
       </div>`).join('')
       : `<div class="empty"><b>No open orders</b>Import a CSV/Excel of pending orders to see matches here.</div>`;
@@ -1220,6 +1332,8 @@
         matchSelectedOrder = matchSelectedOrder===card.dataset.so ? null : card.dataset.so;
         renderMatch();
       }));
+    document.querySelectorAll('#openOrdersWrap .locate-btn').forEach(btn=>
+      btn.addEventListener('click', e=>{ e.stopPropagation(); gotoLocateOrder(btn.dataset.so); }));
 
     document.querySelectorAll('.assign-btn').forEach(btn=>
       btn.addEventListener('click', async (e)=>{
@@ -1341,7 +1455,7 @@
       <div class="kv"><b>Location</b><span>${esc(r.location)}</span></div>
       <div class="kv"><b>Status</b><span><span class="dot ${esc(r.status)}"></span>${esc(r.status)}</span></div>
       <div class="kv"><b>Color</b><span>${esc(r.color)||'—'}</span></div>
-      <div class="kv"><b>Sales Order</b><span class="mono">${esc(r.so)||'—'}</span></div>
+      <div class="kv"><b>Sales Order</b><span class="mono">${soLink(r.so)}</span></div>
       <div class="kv"><b>VG</b><span>${esc(r.villages)||'—'}</span></div>
       <div class="kv"><b>Note</b><span>${esc(r.note)||'—'}</span></div>
       <div class="kv"><b>Dwell time</b><span style="${dwellOver(r)?'color:var(--red);':''}">${dwellLabel(dwellHours(r))}${dwellOver(r)?' ⚠ over alarm threshold':''}</span></div>
@@ -1357,6 +1471,7 @@
       <button class="btn" id="archiveOneBtn" style="margin-top:16px;border-color:var(--accent-dim);color:var(--accent);">Archive (shipped / test entry)</button>
       <button class="btn" id="removeBtn" style="margin-top:8px;border-color:var(--red);color:var(--red);">Remove from staging</button>`;
     $('detailOverlay').style.display='flex';
+    bindSoLinks('#detailModal');
     $('closeDetail').addEventListener('click', closeDetail);
     $('archiveOneBtn').addEventListener('click', async ()=>{
       if(!confirm(`Archive ${serial}? This moves it out of active staging into the Archive tab.`)) return;
